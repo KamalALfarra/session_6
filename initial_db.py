@@ -396,6 +396,23 @@ def run_assignment(conn: sqlite3.Connection) -> None:
         os.path.join("data", "processed", "game_ranks.csv"),
         index=False
     )
+    features = query(conn, """
+                           SELECT g.game_id,
+                                  g.white_rating - g.black_rating AS rating_diff,
+                                  g.turns,
+                                  g.rated,
+                                  o.opening_shortname,
+                                  g.winner
+                           FROM games g
+                                    JOIN openings o
+                                         ON g.opening_code = o.opening_code
+                           """)
+
+    features.to_csv(
+        os.path.join("data", "processed", "features.csv"),
+        index=False
+    )
+    print("Saved features.csv")
 
 
 

@@ -33,7 +33,7 @@ def create_schema(conn: sqlite3.Connection) -> None:
     conn.execute("DROP TABLE IF EXISTS players")
 
 
-    # Players: one raw per uniqu player. 
+    # Players: one raw per unique player.
     conn.execute("""
         CREATE TABLE players (
             username     TEXT    PRIMARY KEY NOT NULL,
@@ -96,7 +96,7 @@ def build_tables(conn: sqlite3.Connection, chess: pd.DataFrame) -> None:
     (games has FK references to both; they must exist first)
     """
 
-    # Players: one raw per uniqu player. 
+    # Players: one raw per unique player.
     white = chess[["white_id", "white_rating"]].rename(
         columns={"white_id": "username", "white_rating": "rating"}
     )
@@ -110,7 +110,7 @@ def build_tables(conn: sqlite3.Connection, chess: pd.DataFrame) -> None:
         .reset_index()
         .rename(columns={"rating": "last_rating"})
     )
-    # Total games is how many time did they appear as white/black
+    # Total games is how many times did they appear as white/black
     white_counts = chess["white_id"].value_counts().rename("w")
     black_counts = chess["black_id"].value_counts().rename("b")
     players_df["total_games"] = (
@@ -199,25 +199,230 @@ def query(conn: sqlite3.Connection, sql: str) -> pd.DataFrame:
 def run_assignment(conn: sqlite3.Connection) -> None:
     """Stage 1 to 4 then Q1 to Q5"""
     # Make sure ti use the function query we built above! -Hend
+    print("\n\nStarting stage 1 and 2\n\n")
+    result = query (conn, """
+                         SELECT COUNT(*)   AS total_games,
+                                SUM(rated) AS rated_games
+                         FROM games
+                         """)
+    print(f"the results for Q1 is:\n {result}")
+    result = query(conn, """
+                         SELECT victory_status,
+                                COUNT(*) AS num_games
+                         FROM games
+                         GROUP BY victory_status
+                         """)
+    print(f"\nthe results for Q2 is:\n {result}")
+    result = query(conn, """
+                         SELECT game_id,winner,turns
+                         FROM games
+                         ORDER BY turns DESC
+                         LIMIT 10
+                         """)
+    print(f"\nthe results for Q3 is:\n {result}")
+    result = query(conn, """
+                         SELECT winner,
+                                100.0 * COUNT(*) / (SELECT COUNT(*) FROM games) AS Percent_games
+                         FROM games
+                         GROUP BY winner
+                         """)
+    print(f"\nThe results for Q4 are:\n{result}")
+    result = query(conn, """
+                         SELECT victory_status,
+                                AVG(turns) AVG_games, MAX(turns) AS Max_games
+                         FROM games
+                         GROUP BY victory_status
+                         ORDER BY AVG_games DESC
+                         """)
+    print(f"\nThe results for Q5 are:\n{result}")
+    result = query(conn, """
+                         SELECT opening_code,
+                                COUNT(*) AS Max_opening_games
+                         FROM games
+                         GROUP BY opening_code
+                         HAVING COUNT(*) > 500
+                         ORDER BY Max_opening_games DESC
+                         LIMIT 5
+                         """)
+    print(f"\nThe results for Q6 are:\n{result}")
+
+    print("\n\nStarting stage 3 and 4\n\n")
+    result = query(conn, """
+                         SELECT opening_fullname,
+                                COUNT(*) AS num_games
+                         FROM games LEFT JOIN openings ON games.opening_code = openings.opening_code
+                         GROUP BY openings.opening_fullname
+                         ORDER BY num_games DESC LIMIT 5
+                         """)
+    print(f"\nThe results for Q7 are:\n{result}")
+
+    result = query(conn, """
+                         SELECT players.username
+                         FROM players
+                                  LEFT JOIN games ON games.white_id = players.username
+                         WHERE games.game_id IS NULL
+                         """)
+    print(f"\nThe results for Q8 are:\n{result}")
+
+    result = query(conn, """
+                         WITH white_wins AS (SELECT white_id,
+                                                    COUNT(*) AS num_wins
+                                             FROM games
+                                             WHERE winner = 'White'
+                                             GROUP BY white_id)
+                         SELECT white_id,
+                                num_wins
+                         FROM white_wins
+                         ORDER BY num_wins DESC LIMIT 5
+                         """)
+    print(f"\nThe results for Q9 are:\n{result}")
+
+    result = query(conn, """
+                         WITH player_wins AS (SELECT white_id AS player,
+                                                     COUNT(*) AS wins
+                                              FROM games
+                                              WHERE winner = 'White'
+                                              GROUP BY white_id
+
+                                              UNION ALL
+
+                                              SELECT black_id AS player,
+                                                     COUNT(*) AS wins
+                                              FROM games
+                                              WHERE winner = 'Black'
+                                              GROUP BY black_id)
+                         SELECT player,
+                                SUM(wins) AS total_wins
+                         FROM player_wins
+                         GROUP BY player
+                         ORDER BY total_wins DESC LIMIT 1
+                         """)
+    print(f"\nThe results for Q10 are:\n{result}")
+    result = query(conn, """
+                         SELECT game_id,
+                                white_id,
+                                white_rating,
+                                RANK() OVER (
+            PARTITION BY white_id
+            ORDER BY white_rating DESC
+        ) AS rating_rank
+                         FROM games LIMIT 10
+                         """)
+    print(f"\nThe results for Q11 are:\n{result}")
+    result = query(conn, """
+                         SELECT
+                            game_id,
+                            white_id,
+                            white_rating,
+                            LAG(white_rating) OVER (
+                                PARTITION BY white_id
+                                ORDER BY game_id
+                            ) AS previous_rating
+                        FROM games
+                        WHERE white_id IN (
+                            SELECT white_id
+                            FROM games
+                            GROUP BY white_id
+                            HAVING COUNT(*) >= 5
+                            )
+                        LIMIT 10""")
+    print(f"\nThe results for Q12 are:\n{result}")
+    print("\n\nAll the Stages are done now starting the five questions of the assignment\n\n")
+    result = query(conn, """
+                         WITH wins AS (SELECT white_id AS player,
+                                              1        AS white_win,
+                                              0        AS black_win
+                                       FROM games
+                                       WHERE winner = 'White'
+
+                                       UNION ALL
+
+                                       SELECT black_id AS player,
+                                              0        AS white_win,
+                                              1        AS black_win
+                                       FROM games
+                                       WHERE winner = 'Black')
+                         SELECT player,
+                                SUM(white_win) AS white_wins,
+                                SUM(black_win) AS black_wins
+                         FROM wins
+                         GROUP BY player
+                         HAVING black_wins > white_wins
+                         ORDER BY black_wins - white_wins DESC LIMIT 10
+                         """)
+    print(f"\nThe results for Q2 are:\n{result}")
+    result = query(conn, """
+                         WITH opening_counts AS (SELECT victory_status,
+                                                        opening_code,
+                                                        COUNT(*) AS num_games,
+                                                        RANK()      OVER (
+                                                            PARTITION BY victory_status
+                                                            ORDER BY COUNT(*) DESC
+                                                        ) AS rnk
+                                                         FROM games
+                                                         GROUP BY victory_status, opening_code)
+                         SELECT victory_status,
+                                openings.opening_fullname,
+                                num_games
+                         FROM opening_counts LEFT JOIN openings ON openings.opening_code = opening_counts.opening_code
+                         WHERE rnk = 1
+                         ORDER BY victory_status
+                         """)
+    print(f"\nThe results for Q3 are:\n{result}")
+    result = query(conn, """
+                         SELECT o.opening_fullname,
+                                AVG(g.turns) AS avg_turns
+                         FROM games g
+                                  JOIN openings o
+                                       ON g.opening_code = o.opening_code
+                         GROUP BY o.opening_fullname
+                         ORDER BY avg_turns DESC LIMIT 3
+                         """)
+
+    print(f"\nThe results for Q4 are:\n{result}")
+    result = query(conn, """
+                         SELECT game_id,
+                                white_id,
+                                turns,
+                                RANK() OVER (
+            PARTITION BY white_id
+            ORDER BY turns DESC
+        ) AS turn_rank
+                         FROM games
+                         """)
+    print(f"\nThe results for Q5 are:\n{result}\nAnd it has been saved to the data folder under the name game_ranks.csv")
+
+    result.to_csv(
+        os.path.join("data", "processed", "game_ranks.csv"),
+        index=False
+    )
+
 
 
 def main():
     print("This is for session 6: testing databases")
-
-    # 1. Loadraw chess data
-    chess = pd.read_csv(os.path.join("data", "raw", "chess_games.csv"))
-    print(f"Loaded chess_games.csv: {chess.shape[0]} rows, {chess.shape[1]} columns.")
-
-    # 2. Build database
     db_path = os.path.join("data", "processed", "chess.db")
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA foreign_keys = ON")  # Enable foreign key constraints!! Don't forget this step, otherwise your FK constraints won't work.
 
-    log.info("Creating schema with constraints...")
-    create_schema(conn)
+    if os.path.exists(db_path):
+        conn = sqlite3.connect(db_path)
+        conn.execute("PRAGMA foreign_keys = ON")
+        print("Using existing database.")
+    else:
+        print("Creating database from CSV...")
 
-    log.info("Building database tables...")
-    build_tables(conn, chess)
+        chess = pd.read_csv(os.path.join("data", "raw", "chess_games.csv"))
+
+        conn = sqlite3.connect(db_path)
+        conn.execute("PRAGMA foreign_keys = ON")
+        log.info("Creating schema with constraints...")
+
+        create_schema(conn)
+        log.info("Building database tables...")
+        build_tables(conn, chess)
+        verify_schema(conn)
+
+        conn.commit()
+
 
     verify_schema(conn)
 
@@ -225,7 +430,7 @@ def main():
     log.info(f"Database tables have been built. {os.path.getsize(db_path)/1024:.2f} KB" )
 
     # call the asignment function to run the queries
-    
+    run_assignment(conn)
     conn.close()
 
 if __name__ == "__main__":

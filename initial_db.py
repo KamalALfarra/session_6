@@ -329,6 +329,15 @@ def run_assignment(conn: sqlite3.Connection) -> None:
     print(f"\nThe results for Q12 are:\n{result}")
     print("\n\nAll the Stages are done now starting the five questions of the assignment\n\n")
     result = query(conn, """
+                         SELECT opening_code,
+                                COUNT(*) AS Max_opening_num
+                         FROM games
+                         where victory_status = 'Draw'
+                         ORDER BY Max_opening_num DESC LIMIT 1
+                         """)
+    print(f"\nThe results for Q1 are:\n{result}")
+
+    result = query(conn, """
                          WITH wins AS (SELECT white_id AS player,
                                               1        AS white_win,
                                               0        AS black_win
@@ -362,7 +371,7 @@ def run_assignment(conn: sqlite3.Connection) -> None:
                                                          FROM games
                                                          GROUP BY victory_status, opening_code)
                          SELECT victory_status,
-                                openings.opening_fullname,
+                                openings.opening_shortname,
                                 num_games
                          FROM opening_counts LEFT JOIN openings ON openings.opening_code = opening_counts.opening_code
                          WHERE rnk = 1
@@ -370,12 +379,12 @@ def run_assignment(conn: sqlite3.Connection) -> None:
                          """)
     print(f"\nThe results for Q3 are:\n{result}")
     result = query(conn, """
-                         SELECT o.opening_fullname,
+                         SELECT o.opening_shortname,
                                 AVG(g.turns) AS avg_turns
                          FROM games g
                                   JOIN openings o
                                        ON g.opening_code = o.opening_code
-                         GROUP BY o.opening_fullname
+                         GROUP BY o.opening_shortname
                          ORDER BY avg_turns DESC LIMIT 3
                          """)
 

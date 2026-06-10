@@ -330,10 +330,15 @@ def run_assignment(conn: sqlite3.Connection) -> None:
     print("\n\nAll the Stages are done now starting the five questions of the assignment\n\n")
     result = query(conn, """
                          SELECT opening_code,
-                                COUNT(*) AS Max_opening_num
+                                COUNT(*) AS total_games,
+                                ROUND(
+                                        100.0 * SUM(CASE WHEN victory_status = 'Draw' THEN 1 ELSE 0 END)
+                                            / COUNT(*), 2
+                                ) AS draw_rate
                          FROM games
-                         where victory_status = 'Draw'
-                         ORDER BY Max_opening_num DESC LIMIT 1
+                         GROUP BY opening_code
+                         HAVING COUNT(*) >= 20
+                         ORDER BY draw_rate DESC LIMIT 5;
                          """)
     print(f"\nThe results for Q1 are:\n{result}")
 
